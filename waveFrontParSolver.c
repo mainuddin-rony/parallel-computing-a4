@@ -108,7 +108,7 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
 
     barrier_init(&barrier, thread_arr_len + 1, barrier_function);
 
-    int thrd_count = 0;
+    int thrd_id = 0;
     int nRow = nbX - 1;
     int nCol = nbZ - 1;
     int rowAssigned, colAssigned = 0;
@@ -124,10 +124,11 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
         for(int j=0; j<num_state_cols; j++){
             if((i!=0) && (j!=0)){
                 int idx = index(i,j);
+//                printf("Creating thread for %d\n", idx);
 
                 jobSpec * args = malloc(sizeof(jobSpec));
 
-                args->tid = thrd_count; //need to think it
+                args->tid = thrd_id; //need to think it
                 args->barrier = &barrier;
                 args->state_index = idx;
 
@@ -180,18 +181,16 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
 
                 printf("Row Start %d, Row End %d, Col start %d, Col end %d\n", args->startWaterRow, args->endWaterRow, args->startWaterCol, args->endWaterCol);
 
-                printf("Going to create threads for %d\n", thrd_count);
-                pthread_create(&(thread_arr[thrd_count]), NULL, WFdoWork, args);
-                thrd_count++;
+                printf("Going to create threads for %d\n", thrd_id);
+                pthread_create(&(thread_arr[thrd_id]), NULL, WFdoWork, args);
+                thrd_id++;
             }
         }
     }
 
-    thread_count = thrd_count;
-
     printf("Creating q2 array for tiles\n");
 
-    tile_q2 = malloc(thread_count * sizeof(float));
+    tile_q2 = malloc(thread_arr_len * sizeof(float));
 
     triggerWave();
 
