@@ -88,7 +88,117 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
     //
     // After writing a final snapshot (if appropriate) this function just 
     // frees memory and ends.
-    
+//    printf("In WFRunUntilDone\n");
+
+    int num_state_rows = nThreadRows + 1;
+    int num_state_cols = nThreadCols + 1;
+
+    createStateArray(num_state_rows, num_state_cols);
+
+    int thread_arr_len = nThreadRows * nThreadCols;
+
+    pthread_t * thread_arr = malloc(thread_arr_len * sizeof(pthread_t));
+
+    barrier_t barrier;
+
+    if(barrier_init(&barrier, thread_arr_len + 1, barrier_function) != 0){
+        return EXIT_FAILURE;
+    }
+
+    int thrd_count = 0;
+    int nRow = nbX - 2;
+    int nCol = nbZ - 2;
+    int rowAssigned, colAssigned = 0;
+    int rowPerThread = round((float)nRow/(float)nThreadRows);
+    int colPerThread = round((float)nCol/(float)nThreadCols);
+    int rowStart = 0;
+    int colStart = 0;
+
+    printf("Number of Rows and columns per thread is %d, %d\n", rowPerThread, colPerThread);
+
+
+    for(int i=0; i<num_state_rows; i++){
+        for(int j=0; j<num_state_cols; j++){
+            if((i!=0) && (j!=0)){
+                int idx = index(i,j);
+
+                jobSpec * args = malloc(sizeof(jobSpec));
+
+                args->tid = thrd_count; //need to think it
+                args->barrier = &barrier;
+                args->state_index = idx;
+
+                args->startWaterRow = rowStart;
+                args->startWaterCol = colStart;
+
+//                printf("Row Start %d\n", rowStart);
+
+                if (rowStart + rowPerThread <= nRow){
+                    if (i == num_state_rows - 1){
+                        args->endWaterRow = nRow - 1;
+//                        printf("Here %d\n", nRow - 1);
+
+                    }
+                    else{
+                        args->endWaterRow = rowStart + rowPerThread - 1;
+                    }
+
+//                  rowAssigned += rowPerThread;
+                }
+                else {
+                    args->endWaterRow = nRow - 1;
+                }
+
+                if (colStart + colPerThread <= nCol) {
+                    if (j == num_state_cols -1){
+                        args->endWaterCol = nCol - 1;
+                        colAssigned = nCol;
+                    }
+                    else{
+                        args->endWaterCol = colStart + colPerThread - 1;
+                        colAssigned += colPerThread;
+                        colStart += colPerThread;
+                    }
+
+                }
+                else {
+                    args->endWaterCol = nCol - 1;
+                    colAssigned = nCol;
+                }
+
+                if (colAssigned == nCol){
+                    colStart = 0;
+                    rowStart += rowPerThread;
+//                    rowAssigned += rowPerThread;
+                }
+
+                printf("Row Start %d, Row End %d, Col start %d, Col end %d\n", args->startWaterRow, args->endWaterRow, args->startWaterCol, args->endWaterCol);
+
+
+                pthread_create(&(thread_arr[thrd_count]), NULL, WFdoWork, args);
+                thrd_count++;
+            }
+        }
+    }
+
+    triggerWave();
+
+    for (int i=0; i<thread_arr_len; i++){
+
+        if (pthread_join(thread_arr[i], NULL) != 0){
+
+            return EXIT_FAILURE;
+        }
+    }
+
+    destroyStateArray();
+
+    if (barrier_destroy(&barrier) != 0){
+
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 
  }
 
@@ -131,7 +241,59 @@ void * WFdoWork( void * a){
     // and wait for the wave for this timeStep to be completed.
     //
     // repeat until done.
-    
+
+    thread_function_args * args = (thread_function_args * ) a;
+    int idx = args->state_index;
+    barrier_t *barr = args->barrier;
+    int tid = args->tid;
+
+    int startRow = args->startWaterRow;
+    int endRow = args->endWaterRow;
+
+    int startCol = args->startWaterCol;
+    int endCol = args->endWaterCol;
+
+    free(args);
+    args = NULL; a = NULL;
+//    int init_ts = -1;
+
+    while(true){
+        int n_idx = N(idx);
+        int w_idx = W(idx);
+        int ts = getStateArray()[idx].timeStep;
+        waitOnNeighbor(n_idx, ts);
+        waitOnNeighbor(w_idx, ts);
+
+        WFupdateWater(startRow, endRow, startCol, endCol);
+
+        float curr_max = 0.0;
+
+        for (int i = startRow; i <= endRow; i++ ){
+            for (int j = startCol; j<= endCol; j++){
+                int q_idx = i * nbZ + j;
+                if (q2[q_idx] > curr_max) {
+                    curr_max = q2[q_idx];
+                }
+            }
+        }
+
+
+
+
+        pthread_mutex_lock(&getStateArray()[idx].lock);
+
+
+        getStateArray()[idx].timeStep += 1;
+        pthread_cond_broadcast(&getStateArray()[idx].cv);
+
+
+        pthread_mutex_unlock(&getStateArray()[idx].lock);
+
+
+        barrier_wait(barr, NULL);
+    }
+
+
 
     return NULL;
 }

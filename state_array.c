@@ -112,6 +112,25 @@ void triggerWave(){
     // This is similar to initBorders() from a3, but our boundary elements are 
     // now on the north and west edges, and we're incrementing, not setting to 1.
     // NOTE: Don't increment the corner twice!
+
+    for (int i = 0; i <  nrows; i ++){
+        int b_idx = index(i, 0);
+        // printf("Initializing border idx %d\n", b_idx);
+        pthread_mutex_lock(&state_arr[b_idx].lock);
+        state_arr[b_idx].timeStep += 1;
+        pthread_cond_broadcast(&state_arr[b_idx].cv);
+        pthread_mutex_unlock(&state_arr[b_idx].lock);
+    }
+
+    for (int i = 1; i <  ncols; i ++){
+        int b_idx = index(0, i);
+        // printf("Initializing border idx %d\n", b_idx);
+        pthread_mutex_lock(&state_arr[b_idx].lock);
+        state_arr[b_idx].timeStep += 1;
+        pthread_cond_broadcast(&state_arr[b_idx].cv);
+        pthread_mutex_unlock(&state_arr[b_idx].lock);
+    }
+
 }
 
 /** Given a row and column, compute the index of the corresponding element of the state_array.
@@ -172,6 +191,14 @@ int waitOnNeighbor(int index, int timeStep){
     // TODO: Write me.
     //
     // Make sure you use the mutex!
+    pthread_mutex_lock(&getStateArray()[index].lock);
+    if (getStateArray()[index].timeStep == timeStep){
+        pthread_cond_wait(&getStateArray()[index].cv, &getStateArray()[index].lock);
+    }
+
+//    getStateArray()[index].sum ;
+
+    pthread_mutex_unlock(&getStateArray()[e_idx].lock);
     
 
 	return 0;
