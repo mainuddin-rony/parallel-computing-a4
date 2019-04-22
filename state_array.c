@@ -193,8 +193,9 @@ int waitOnNeighbor(int index, int timeStep){
     // TODO: Write me.
     //
     // Make sure you use the mutex!
+
     pthread_mutex_lock(&getStateArray()[index].lock);
-    if (getStateArray()[index].timeStep == timeStep){
+    while (getStateArray()[index].timeStep == timeStep){
         pthread_cond_wait(&getStateArray()[index].cv, &getStateArray()[index].lock);
     }
 

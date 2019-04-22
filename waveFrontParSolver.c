@@ -116,6 +116,7 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
     int colPerThread = round((float)nCol/(float)nThreadCols);
     int rowStart = 0;
     int colStart = 0;
+    tile_q2 = malloc(thread_arr_len * sizeof(float));
 
     printf("Number of Rows and columns per thread is %d, %d\n", rowPerThread, colPerThread);
 
@@ -188,9 +189,9 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
         }
     }
 
-    printf("Creating q2 array for tiles\n");
+//    printf("Creating q2 array for tiles\n");
 
-    tile_q2 = malloc(thread_arr_len * sizeof(float));
+
 
     triggerWave();
 
@@ -263,9 +264,13 @@ void * WFdoWork( void * a){
     int startCol = args->startWaterCol;
     int endCol = args->endWaterCol;
 
+    printf("Get sub domain from Row: %d to Row: %d to Col: %d Col: %d\n", startRow, endRow, startCol, endCol);
+
     free(args);
     args = NULL; a = NULL;
 //    int init_ts = -1;
+
+    printf("Loop condition value is %d\n", loop_cond);
 
     while(loop_cond == 0){
         int n_idx = N(idx);
@@ -273,6 +278,8 @@ void * WFdoWork( void * a){
 //        int ts = getStateArray()[idx].timeStep;
         waitOnNeighbor(n_idx, timeStep);
         waitOnNeighbor(w_idx, timeStep);
+
+        printf("Updating water flow\n");
 
         WFupdateWater(startRow, endRow, startCol, endCol);
 
