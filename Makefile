@@ -1,6 +1,6 @@
 # Makefile for shallowWaterMT
 
-DEBUGOPT = -g # set to -g for debugging, or -O3 for optimized code
+DEBUGOPT = -O3 # set to -g for debugging, or -O3 for optimized code
 
 CFLAGS	= -Wall	-W -std=c99 ${DEBUGOPT} -Wno-unused-parameter -Wno-unused-variable -DGL_SILENCE_DEPRECATION
 
