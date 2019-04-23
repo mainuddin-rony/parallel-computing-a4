@@ -113,11 +113,9 @@ void triggerWave(){
     // now on the north and west edges, and we're incrementing, not setting to 1.
     // NOTE: Don't increment the corner twice!
 
-    printf("Triggering the wave\n");
 
     for (int i = 0; i <  nrows; i ++){
         int b_idx = index(i, 0);
-        // printf("Initializing border idx %d\n", b_idx);
         pthread_mutex_lock(&state_arr[b_idx].lock);
         state_arr[b_idx].timeStep += 1;
         pthread_cond_broadcast(&state_arr[b_idx].cv);
@@ -126,7 +124,6 @@ void triggerWave(){
 
     for (int i = 1; i <  ncols; i ++){
         int b_idx = index(0, i);
-        // printf("Initializing border idx %d\n", b_idx);
         pthread_mutex_lock(&state_arr[b_idx].lock);
         state_arr[b_idx].timeStep += 1;
         pthread_cond_broadcast(&state_arr[b_idx].cv);
@@ -195,11 +192,10 @@ int waitOnNeighbor(int index, int timeStep){
     // Make sure you use the mutex!
 
     pthread_mutex_lock(&getStateArray()[index].lock);
-    while (getStateArray()[index].timeStep == timeStep){
+    while (getStateArray()[index].timeStep == timeStep-1){
         pthread_cond_wait(&getStateArray()[index].cv, &getStateArray()[index].lock);
     }
 
-//    getStateArray()[index].sum ;
 
     pthread_mutex_unlock(&getStateArray()[index].lock);
     

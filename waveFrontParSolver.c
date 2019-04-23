@@ -17,7 +17,7 @@
 int gSaveInterval=0;
 float* tile_q2;
 int loop_cond = 0;
-int thread_count;
+int thread_arr_len;
 float gThreshold = 0.0;
 // nbX ( # Cols) and nbZ (# Rows) are true globals defined in Solver.h, and determine the 
 // resolution of the simulation.
@@ -68,8 +68,6 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
 
     gSaveInterval = saveInterval;
     //TODO: Write me.
-    gThreshold = threshold;
-
     // After initializing local variables, the state_array, the barrier, etc.,
     // you'll a loop ( or nested loops) that iterate over the thread array
     // and create a jobSpec struct for each thread. 
@@ -92,21 +90,20 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
     //
     // After writing a final snapshot (if appropriate) this function just 
     // frees memory and ends.
-//    printf("In WFRunUntilDone\n");
 
+    gThreshold = threshold;
     int num_state_rows = nThreadRows + 1;
     int num_state_cols = nThreadCols + 1;
 
     createStateArray(num_state_rows, num_state_cols);
 
-    int thread_arr_len = nThreadRows * nThreadCols;
-//    printf("Length of thread array %d\n", thread_arr_len);
+    thread_arr_len = nThreadRows * nThreadCols;
 
     pthread_t * thread_arr = malloc(thread_arr_len * sizeof(pthread_t));
 
     barrier_t barrier;
 
-    barrier_init(&barrier, thread_arr_len + 1, barrier_function);
+    barrier_init(&barrier, thread_arr_len , barrier_function);
 
     int thrd_id = 0;
     int nRow = nbX - 1;
@@ -118,14 +115,11 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
     int colStart = 0;
     tile_q2 = malloc(thread_arr_len * sizeof(float));
 
-    printf("Number of Rows and columns per thread is %d, %d\n", rowPerThread, colPerThread);
-
 
     for(int i=0; i<num_state_rows; i++){
         for(int j=0; j<num_state_cols; j++){
             if((i!=0) && (j!=0)){
                 int idx = index(i,j);
-//                printf("Creating thread for %d\n", idx);
 
                 jobSpec * args = malloc(sizeof(jobSpec));
 
@@ -135,28 +129,23 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
 
                 args->startWaterRow = rowStart;
                 args->startWaterCol = colStart;
-//                printf("Initial rowStar %d, colStart %d\n", rowStart,colStart);
 
-//                printf("Row Start %d\n", rowStart);
 
                 if (rowStart + rowPerThread <= nRow){
                     if (i == num_state_rows - 1){
                         args->endWaterRow = nRow - 1;
-//                        printf("Here %d\n", nRow - 1);
 
                     }
                     else{
                         args->endWaterRow = rowStart + rowPerThread - 1;
                     }
 
-//                  rowAssigned += rowPerThread;
                 }
                 else {
                     args->endWaterRow = nRow - 1;
                 }
 
                 if (colStart + colPerThread <= nCol) {
-//                    printf("Inside if colStart %d\n", colStart);
                     if (j == num_state_cols -1){
                         args->endWaterCol = nCol - 1;
                         colAssigned = nCol;
@@ -169,7 +158,6 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
 
                 }
                 else {
-//                    printf("Else col start\n");
                     args->endWaterCol = nCol - 1;
                     colAssigned = nCol;
                 }
@@ -177,25 +165,21 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
                 if (colAssigned == nCol){
                     colStart = 0;
                     rowStart += rowPerThread;
-//                    rowAssigned += rowPerThread;
                 }
 
-                printf("Row Start %d, Row End %d, Col start %d, Col end %d\n", args->startWaterRow, args->endWaterRow, args->startWaterCol, args->endWaterCol);
 
-                printf("Going to create threads for %d\n", thrd_id);
+
                 pthread_create(&(thread_arr[thrd_id]), NULL, WFdoWork, args);
                 thrd_id++;
             }
         }
     }
 
-//    printf("Creating q2 array for tiles\n");
 
 
 
     triggerWave();
 
-    printf("Joining Thread functions\n");
 
     for (int i=0; i<thread_arr_len; i++){
 
@@ -205,8 +189,6 @@ void WFRunUntilDone(int nThreadRows, int nThreadCols, float threshold, int saveI
     destroyStateArray();
     barrier_destroy(&barrier);
 
-
-//    return EXIT_SUCCESS;
 
  }
 
@@ -256,7 +238,6 @@ void * WFdoWork( void * a){
     barrier_t *barr = args->barrier;
     int tid = args->tid;
 
-    printf("Inside Thread Function for thread %d\n", tid);
 
     int startRow = args->startWaterRow;
     int endRow = args->endWaterRow;
@@ -264,22 +245,18 @@ void * WFdoWork( void * a){
     int startCol = args->startWaterCol;
     int endCol = args->endWaterCol;
 
-    printf("Get sub domain from Row: %d to Row: %d to Col: %d Col: %d\n", startRow, endRow, startCol, endCol);
+
 
     free(args);
     args = NULL; a = NULL;
-//    int init_ts = -1;
 
-    printf("Loop condition value is %d\n", loop_cond);
 
     while(loop_cond == 0){
         int n_idx = N(idx);
         int w_idx = W(idx);
-//        int ts = getStateArray()[idx].timeStep;
         waitOnNeighbor(n_idx, timeStep);
         waitOnNeighbor(w_idx, timeStep);
 
-        printf("Updating water flow\n");
 
         WFupdateWater(startRow, endRow, startCol, endCol);
 
@@ -288,11 +265,11 @@ void * WFdoWork( void * a){
         for (int i = startRow; i <= endRow; i++ ){
             for (int j = startCol; j<= endCol; j++){
                 int q_idx = i * nbZ + j;
-                if (fabs(q2[q_idx]) > fabs(curr_max)) {
-                    curr_max = q2[q_idx];
-                }
+                float v = fabs(q2[q_idx]);
+                curr_max = (v > curr_max) ? v : curr_max;
             }
         }
+
 
         tile_q2[tid] = curr_max;
 
@@ -304,8 +281,6 @@ void * WFdoWork( void * a){
 
 
         pthread_mutex_unlock(&getStateArray()[idx].lock);
-
-
         barrier_wait(barr, NULL);
     }
 
@@ -408,9 +383,7 @@ void * barrier_function(void * a){
     // Tell the threads to stop if the max velocity in q2 is < gThreshold.
     //    The other threads should have already computed the max value for their tile.
 
-    
-    // update simulation time and timeStep (from solver.c)
-    float best_max = arrayMax(tile_q2, thread_count);
+    float best_max = arrayMax(tile_q2, thread_arr_len);
 
     if (best_max < gThreshold) {
         loop_cond = 1;
@@ -422,6 +395,12 @@ void * barrier_function(void * a){
     
     if( gSaveInterval != 0 && (getTimeStep() % gSaveInterval) == 0){    
     	writeTIFF("water");
+    }
+
+    if (loop_cond == 1){
+        if( gSaveInterval != 0 && (getTimeStep() % gSaveInterval) != 0) {
+            writeTIFF("water");
+        }
     }
     
     // Defined in state_array.c.  
